@@ -13,8 +13,8 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class UserService {
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;  
-
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
     public User registerUser(String username , String email , String password){
         
         if(userRepository.existsByUsername(username)){
@@ -34,5 +34,16 @@ public class UserService {
         
         return userRepository.save(user);
 
+    }
+
+    public String loginUser(String username , String password ){
+        User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("Invalid username"));
+        
+        if(!passwordEncoder.matches(password, user.getPasswordHash())){
+            throw new RuntimeException("Invalid password");
+        }
+        
+        return jwtService.generateToken(user.getUsername());
     }
 }
