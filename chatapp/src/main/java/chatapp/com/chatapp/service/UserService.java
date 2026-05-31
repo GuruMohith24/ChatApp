@@ -3,6 +3,7 @@ package chatapp.com.chatapp.service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import chatapp.com.chatapp.dto.AuthResponse;
 import chatapp.com.chatapp.model.User;
 import chatapp.com.chatapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,14 +37,22 @@ public class UserService {
 
     }
 
-    public String loginUser(String username , String password ){
-        User user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("Invalid username"));
-        
-        if(!passwordEncoder.matches(password, user.getPasswordHash())){
-            throw new RuntimeException("Invalid password");
-        }
-        
-        return jwtService.generateToken(user.getUsername());
+    
+
+    public AuthResponse loginUser(String username, String rawPassword) {
+    User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Invalid username or password"));
+
+    if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+        throw new RuntimeException("Invalid username or password");
     }
+
+    String jwtToken = jwtService.generateToken(user.getUsername());
+
+    return AuthResponse.builder()
+                .token(jwtToken)
+                .username(username)
+                .build();
+    }
+
 }

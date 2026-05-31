@@ -2,7 +2,6 @@ package chatapp.com.chatapp.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,14 +39,13 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequest request) {
-        String jwtToken = jwtService.generateToken(request.getUsername());
-        AuthResponse response = AuthResponse.builder()
-                                    .token(jwtToken)
-                                    .username(request.getUsername())
-                                    .build();
+        try {
             
-        return new ResponseEntity<>(response, HttpStatus.OK);
-            
-        
+            AuthResponse response = userService.loginUser(request.getUsername(), request.getPassword());
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.UNAUTHORIZED);
+        }
     }
+
 }
