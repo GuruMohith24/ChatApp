@@ -53,6 +53,46 @@
 
 ---
 
+## 📅 Day 3: Stateless Authentication (JWT & Spring Security Architecture)
+
+### 🧠 Core Concepts Learned
+*   **JWT (JSON Web Token)**: A compact, self-contained token format for securely transmitting claims between parties. Consists of three Base64Url-encoded parts separated by dots: `Header.Payload.Signature`.
+*   **JWT Header**: Contains metadata — the token type (`"typ": "JWT"`) and the signing algorithm (`"alg": "HS256"`).
+*   **JWT Payload (Claims)**: Contains non-sensitive user data like `sub` (subject/username), `iat` (issued at), `exp` (expiration). **CRITICAL: Never store passwords or sensitive data here — JWTs are encoded, NOT encrypted. Anyone can decode the payload.**
+*   **JWT Signature**: Computed as `HMACSHA256(Base64Url(Header) + "." + Base64Url(Payload), secret_key)`. This guarantees **integrity** — if someone tampers with the payload, the signature becomes invalid because they don't know the server's secret key.
+*   **Stateless vs. Stateful Authentication**: Stateful stores sessions in server memory (requires sticky sessions or shared session stores). Stateless stores credentials in JWT tokens on the client side — no server memory needed, making it horizontally scalable.
+*   **SecurityContextHolder**: The central component of Spring Security where the authenticated user's details are stored for the duration of a single HTTP request.
+*   **OncePerRequestFilter**: A Spring filter base class that guarantees execution exactly once per request dispatch, preventing redundant security checks during internal forwards or redirects.
+*   **UserDetailsService**: A core Spring Security interface with a single method `loadUserByUsername(String username)` — the bridge between your database and Spring Security's authentication system.
+
+### 🏛️ Key Architectural Decisions & Trade-Offs
+
+#### 1. Why JJWT (io.jsonwebtoken) over java-jwt (com.auth0)?
+*   **Decision**: We used `io.jsonwebtoken:jjwt-api` version 0.12.5.
+*   **Trade-Off**: JJWT is the most widely used JWT library in Spring Boot tutorials and production codebases. Version 0.12.x uses a modern builder API (`Jwts.builder().subject()` instead of the deprecated `setClaims()`), making it fully compatible with Spring Boot 3.x and Jakarta EE.
+
+#### 2. Why a separate `JwtAuthFilter` instead of using Spring's built-in form login?
+*   **Decision**: We created a custom `JwtAuthFilter` extending `OncePerRequestFilter`.
+*   **Trade-Off**: Spring's default form-based login (`formLogin()`) is designed for server-rendered HTML pages with session cookies. Our React SPA sends JSON requests and expects JWT tokens — not HTML redirects. A custom filter reads the `Authorization: Bearer <token>` header, validates the JWT, and sets the `SecurityContext` programmatically.
+
+#### 3. Decoupling JPA Entities from Spring Security (`UserDetails`)
+*   **Decision**: We kept `User.java` as a pure JPA entity and converted it into a Spring Security `UserDetails` object inside the `UserDetailsService` bean in `SecurityConfig.java`.
+*   **Trade-Off**: Implementing `UserDetails` directly on `User.java` would force Spring Security imports into our database domain layer. Creating the mapping in the config class maintains clean **separation of concerns** between security infrastructure and database models.
+
+#### 4. Why Stateless Sessions for SPA Deployments?
+*   **Decision**: Configured `SessionCreationPolicy.STATELESS` in Spring Security.
+*   **Trade-Off**: The server creates no HTTP sessions. Each request must carry its own `Authorization: Bearer <token>` header. This works seamlessly with React (Vercel) talking to Spring Boot (Railway) across different domains, and eliminates the need for CSRF protection (since there are no cookies to exploit).
+
+### 🔧 Files Created/Modified on Day 3
+*   `JwtService.java` — Added `extractUsername()`, `extractExpiration()`, `isTokenExpired()`, `isTokenValid()`, `extractAllClaims()`, `extractClaim()` methods.
+*   `JwtAuthFilter.java` — Complete `OncePerRequestFilter` implementation intercepting every request, validating Bearer tokens, and setting `SecurityContext`.
+*   `UserService.java` — Unified `loginUser()` method returning `AuthResponse` (token + username) after credential verification.
+*   `AuthController.java` — `/login` endpoint now delegates entirely to `UserService.loginUser()` with try/catch error handling.
+*   `SecurityConfig.java` — Added `UserDetailsService` bean mapping JPA `User` to Spring Security `UserDetails`.
+*   `AuthResponse.java` — New DTO with `token` and `username` fields for login responses.
+
+---
+
 ## 🧠 Active Recall Placement Flashcards
 
 #### Q: What is the difference between `@Component`, `@Service`, and `@Repository`?
