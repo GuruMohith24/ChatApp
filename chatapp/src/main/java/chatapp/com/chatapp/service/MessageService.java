@@ -56,7 +56,7 @@ public class MessageService {
         User user2 = userRepository.findByUsername(username2)
                                 .orElseThrow(()-> new RuntimeException("username2 not found : "+ username2));
 
-        List<Message> messages = messageRepository.findBySenderAndRecipientOrRecipientAndSenderOrderByCreatedAtAsc(user1 , user2 , user2, user1);
+        List<Message> messages = messageRepository.findBySenderAndRecipientOrRecipientAndSenderOrderByCreatedAtAsc(user1 , user2 , user1, user2);
 
         return messages.stream()
             .map(message -> ChatMessageResponse.builder()

@@ -93,6 +93,59 @@
 
 ---
 
+## 📅 Day 4-5: The Messaging Layer & WebSocket Architecture
+
+### 🧠 Core Concepts Learned
+
+*   **HTTP vs. WebSocket**: HTTP follows a request-response model — the client requests, the server responds, and the connection is cut off. WebSocket is an **upgraded version of HTTP** that maintains a persistent, **full-duplex** connection. Both client and server can send data at any time without re-establishing connections or sending heavy headers repeatedly. This is what makes real-time chat possible.
+*   **Full-Duplex Communication**: Both sides (client and server) can send messages to each other simultaneously over a single connection, like a phone call. HTTP is half-duplex — like a walkie-talkie where only one side talks at a time.
+*   **STOMP (Simple Text Oriented Messaging Protocol)**: A lightweight messaging protocol layered on top of WebSocket. It provides conventions for message routing using destinations like `/app/chat.send` and `/queue/messages`, similar to how HTTP has URL paths.
+*   **SimpMessagingTemplate**: Spring's built-in tool for pushing messages to specific users over WebSocket. `convertAndSendToUser(username, destination, payload)` delivers a message to a specific connected user in real-time.
+*   **`@MessageMapping`**: The WebSocket equivalent of `@PostMapping`. Maps incoming STOMP messages to handler methods. When a client sends a message to `/app/chat.send`, the method annotated with `@MessageMapping("/chat.send")` handles it.
+*   **`@Payload`**: The WebSocket equivalent of `@RequestBody`. Deserializes the incoming STOMP message body into a Java DTO.
+*   **`Principal`**: A Spring Security interface representing the authenticated user. Injected automatically into controller methods — `principal.getName()` returns the logged-in user's username. Works for both REST and WebSocket handlers (once WebSocket auth is configured).
+*   **`@PathVariable`**: Extracts a value from the URL path. In `@GetMapping("/api/messages/{username}")`, the `{username}` placeholder is injected into the method parameter annotated with `@PathVariable`.
+*   **Java Streams & `.map()`**: Used to transform a `List<Message>` (database entities) into a `List<ChatMessageResponse>` (DTOs). The `.stream().map(msg -> ...).collect(Collectors.toList())` pipeline applies a transformation function to each element.
+*   **Spring Data JPA Derived Query Methods**: Spring automatically generates SQL from method names. `findBySenderAndRecipientOrRecipientAndSenderOrderByCreatedAtAsc` parses into: `WHERE (sender=? AND recipient=?) OR (recipient=? AND sender=?) ORDER BY created_at ASC`.
+
+### 🏛️ Key Architectural Decisions & Trade-Offs
+
+#### 1. Why WebSocket instead of HTTP Polling for Real-Time Chat?
+*   **Decision**: We configured WebSocket with STOMP via `@EnableWebSocketMessageBroker` in `WebSocketConfig.java`.
+*   **Trade-Off**: HTTP polling would require the client to repeatedly ask "any new messages?" every few seconds — wasting bandwidth with redundant requests and heavy headers. WebSocket keeps a single persistent connection open, and the server **pushes** new messages instantly. The trade-off is that WebSocket connections consume server memory (each connected user holds an open socket), but for a chat app the real-time benefit far outweighs this cost.
+
+#### 2. Why SockJS Fallback on the WebSocket Endpoint?
+*   **Decision**: We configured `.withSockJS()` on the `/ws` STOMP endpoint.
+*   **Trade-Off**: Not all networks and browsers support raw WebSocket connections (corporate firewalls, older proxies can block them). SockJS provides automatic fallback to HTTP long-polling or streaming if WebSocket fails. The trade-off is a slightly larger client-side library, but it guarantees connectivity for all users.
+
+#### 3. Why a Simple Broker instead of an External Message Broker (RabbitMQ/Kafka)?
+*   **Decision**: We used `registry.enableSimpleBroker("/topic", "/queue")` — an in-memory broker built into Spring.
+*   **Trade-Off**: A simple broker stores subscriptions in server memory. If the server restarts, all active subscriptions are lost. For production at scale, you'd use RabbitMQ or Kafka as external brokers for durability and horizontal scaling. But for our learning project, the simple broker avoids infrastructure complexity while teaching the same STOMP concepts.
+
+#### 4. Why Separate REST and WebSocket Endpoints for Messaging?
+*   **Decision**: `ChatController` has both `@GetMapping("/api/messages/{username}")` for history and `@MessageMapping("/chat.send")` for real-time sending.
+*   **Trade-Off**: Chat history is a classic request-response pattern (load old messages when opening a chat window) — perfect for REST. Sending new messages needs real-time push — perfect for WebSocket. Using the right protocol for the right job keeps the architecture clean.
+
+### 🐛 Bug Found & Fixed: Query Parameter Ordering
+
+*   **Bug**: `getChatHistory` only returned messages sent in one direction (alice → bob), missing replies (bob → alice).
+*   **Root Cause**: The repository call `findBySenderAndRecipientOrRecipientAndSenderOrderByCreatedAtAsc(user1, user2, user2, user1)` had parameters in the wrong order.
+*   **Why**: Spring Data JPA maps parameters positionally. The method name parses as:
+    *   Condition 1: `Sender = param1, Recipient = param2` → alice → bob ✅
+    *   Condition 2: `Recipient = param3, Sender = param4` → `Recipient = bob, Sender = alice` → same as Condition 1! ❌
+*   **Fix**: Changed to `(user1, user2, user1, user2)`:
+    *   Condition 1: `Sender = alice, Recipient = bob` → alice → bob ✅
+    *   Condition 2: `Recipient = alice, Sender = bob` → bob → alice ✅
+*   **Lesson**: When using Spring Data JPA derived queries with OR conditions, always **trace the parameter positions manually** against the method name to verify each condition tests what you intend.
+
+### 🔧 Files Created/Modified on Day 4-5
+*   `MessageService.java` — Added `sendMessage()` and `getChatHistory()` methods with proper `Optional` handling, User lookups, and DTO mapping using Java Streams.
+*   `ChatController.java` — **NEW**. REST endpoint for chat history (`@GetMapping`) + WebSocket handler for real-time messaging (`@MessageMapping`) + temporary REST send endpoint for Postman testing.
+*   `SecurityConfig.java` — Added `/ws/**` to `permitAll()` so WebSocket handshake can pass through Spring Security.
+*   `MessageRepository.java` — Already had `findBySenderAndRecipientOrRecipientAndSenderOrderByCreatedAtAsc` from Day 4.
+
+---
+
 ## 🧠 Active Recall Placement Flashcards
 
 #### Q: What is the difference between `@Component`, `@Service`, and `@Repository`?
@@ -106,6 +159,15 @@
 
 #### Q: How does BCrypt secure passwords against brute force attacks?
 > **Answer**: BCrypt uses a **slow hashing algorithm** (adaptive hashing). You can configure a "Work Factor" (strength) to make the hashing process computationally expensive. This slows down brute-force and dictionary attacks significantly. It also automatically incorporates a random **salt** for each password, preventing "rainbow table" lookup attacks.
+
+#### Q: What is the fundamental difference between HTTP and WebSocket?
+> **Answer**: HTTP is a **request-response** protocol — the client sends a request, the server responds, and the connection is closed. Every request requires full headers. WebSocket is a **persistent, full-duplex** protocol — after an initial HTTP handshake upgrade, the connection stays open and both sides can send data at any time without reconnecting. This makes WebSocket ideal for real-time applications like chat.
+
+#### Q: What does `@MessageMapping` do and how does it relate to `@PostMapping`?
+> **Answer**: `@MessageMapping("/chat.send")` is the WebSocket/STOMP equivalent of `@PostMapping`. It maps incoming STOMP messages sent to `/app/chat.send` (prefixed by the application destination prefix configured in `WebSocketConfig`) to a handler method. `@Payload` replaces `@RequestBody` for deserializing the message body.
+
+#### Q: Why did the `getChatHistory` query only return one-directional messages?
+> **Answer**: Spring Data JPA maps method parameters **positionally** to the parsed method name. The method `findBySenderAndRecipientOrRecipientAndSender` creates two conditions joined by OR. With parameters `(user1, user2, user2, user1)`, both conditions resolved to the same query (alice→bob). Fixing to `(user1, user2, user1, user2)` made Condition 2 correctly find bob→alice messages.
 
 ---
 
