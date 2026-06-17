@@ -1,8 +1,16 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 
 function ChatPage() {
   const username = localStorage.getItem("username")
   const token = localStorage.getItem("token")
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    localStorage.removeItem("token")
+    localStorage.removeItem("username")
+    navigate("/")
+  }
 
   const [recipient, setRecipient] = useState("")
   const [messages, setMessages] = useState<any[]>([])
@@ -35,7 +43,7 @@ function ChatPage() {
 
   return (
     <div>
-      <h2>ChatApp - {username}</h2>
+      <h2>ChatApp - {username} <button onClick={handleLogout}>Logout</button></h2>
 
       <div>
         <input
