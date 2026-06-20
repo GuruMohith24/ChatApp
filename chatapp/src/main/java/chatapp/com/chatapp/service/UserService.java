@@ -4,6 +4,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import chatapp.com.chatapp.dto.AuthResponse;
+import chatapp.com.chatapp.dto.UserResponse;
 import chatapp.com.chatapp.model.User;
 import chatapp.com.chatapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -55,4 +56,16 @@ public class UserService {
                 .build();
     }
 
+    public java.util.List<UserResponse> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(user -> UserResponse.builder()
+                        .id(user.getId())
+                        .username(user.getUsername())
+                        .email(user.getEmail())
+                        .avatarUrl(user.getAvatarUrl())
+                        .isOnline(user.getIsOnline())
+                        .createdAt(user.getCreatedAt())
+                        .build())
+                .collect(java.util.stream.Collectors.toList());
+    }
 }

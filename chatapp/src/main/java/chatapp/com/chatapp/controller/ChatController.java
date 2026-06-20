@@ -8,8 +8,6 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import chatapp.com.chatapp.dto.ChatMessageResponse;
@@ -33,10 +31,5 @@ public class ChatController {
         ChatMessageResponse response = messageService.sendMessage(principal.getName(), request);
         messagingTemplate.convertAndSendToUser(response.getRecipientUsername(), "/queue/messages", response);
     }
-
-    // TEMPORARY - for Postman testing only, remove later
-    @PostMapping("/api/messages/send")
-    public ChatMessageResponse sendMessageRest(@RequestBody SendMessageRequest request, Principal principal) {
-        return messageService.sendMessage(principal.getName(), request);
-    }
 }
+
